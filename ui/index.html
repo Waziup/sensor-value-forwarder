@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Sensor Value Forwarder</title>
+  <meta name="description" content="" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link rel="stylesheet" href="main.css" type="text/css" />
+  <script type="text/javascript" src="jquery-3.2.1.min.js"></script>
+
+  <script type="text/javascript">
+    // Call go to sync past values
+    function syncHistoricalValues() {
+      alert('Will sync all historical sensor values available to this date!');
+    }
+
+    // Call go to sync future values  
+    function syncFutureValues() {
+      alert('Will sync all future sensor values, app will be run in background!');
+    }
+
+    // JavaScript function to toggle visibility
+    function showElements() {
+      var inputElements = document.querySelector('.input_elements');
+      inputElements.style.display = "block"
+    }
+
+    // Display Snesor values and other elements
+    function displaySensorsAndElements(sensorList) {
+      // Get the <select> element by its ID
+      const selectElement = document.getElementById("sensor_list");
+      showElements()
+
+      // Loop through the sensor names and create <option> elements
+      sensorList.forEach(sensor => {
+        // Create an <option> element
+        const optionElement = document.createElement("option");
+
+        // Set the value and text of the <option> element
+        optionElement.value = sensor.sensorId;
+        optionElement.text = sensor.deviceName + " / " + sensor.sensorName;
+
+        // Append the <option> element to the <select> element
+        selectElement.appendChild(optionElement);
+      });
+    }
+
+    // Creates List of sensors
+    function parseSensorData(jsonData) {
+      const sensorList = [];
+
+      // Loop through the array of objects (devices) in jsonData
+      jsonData.forEach(device => {
+        // Check if the device has a "sensors" property
+        if (device.sensors && Array.isArray(device.sensors)) {
+          // Loop through the sensors array of the device
+          device.sensors.forEach(sensor => {
+            // Extract sensor information
+            const sensorInfo = {
+              deviceId: device.id,
+              deviceName: device.name,
+              sensorId: sensor.id,
+              sensorName: sensor.name,
+              sensorValue: sensor.value,
+            };
+
+            // Push the sensor information to the sensorList
+            sensorList.push(sensorInfo);
+          });
+        }
+      });
+      return sensorList;
+    }
+
+    // Main function
+    function loadStuff() {
+      $.get("http://localhost:8080/devices", function (data) {
+        const sensors = parseSensorData(data);
+        console.log("Sensors: ", sensors)
+        displaySensorsAndElements(sensors)
+        //$("#sensor_list").html(sensors).fadeIn();
+        //autoR = setTimeout(function () { loadStuff() }, 2000);
+      });
+    }
+
+    // Called on page load => shows loading animation
+    $(function () {
+      $("#sensor_list").html("<img src=\"./loading.gif\" /> Loading...").fadeIn();
+      loadStuff();
+    });
+  </script>
+</head>
+
+<body style="height: 100%;">
+  <div class="center">
+    <h1>Sensor Value Forwarder</h1>
+    <p>This application forwards sensor values received by WaziGate to an endpoint.</p>
+
+    <div class="input_elements" style="display: none;">
+      <label for="address_form">Endpoint URL:</label>
+      <input type="text" name="address_form"
+        value=" http://urbane-middleware.northeurope.cloudapp.azure.com:8443/iotsensor/weather">
+      <select id="sensor_list" multiple size="6"></select>
+      <button type="button" onclick="syncHistoricalValues()">Sync all historical sensor values</button>
+      <button type="button" onclick="syncFutureValues()">Sync all future sensor values</button>
+    </div>
+    <h2 id="sensor_list"></h2>
+  </div>
+</body>
+
+</html>
