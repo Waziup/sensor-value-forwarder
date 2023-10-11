@@ -36,7 +36,7 @@
 /* Style the select element */
 #sensor_list {
     width: 500px; /* Set the width */
-    height: 150px; /* Set the height */
+    height: 200px; /* Set the height */
     font-size: 16px; /* Set the font size */
     border-radius: 5px; /* Add rounded corners */
 }

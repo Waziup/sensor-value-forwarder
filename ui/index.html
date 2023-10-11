@@ -11,13 +11,45 @@
   <script type="text/javascript" src="jquery-3.2.1.min.js"></script>
 
   <script type="text/javascript">
-    // Call go to sync past values
-    function syncHistoricalValues() {
-      alert('Will sync all historical sensor values available to this date!');
+    // Get selected items from 
+    function evalSelected() {
+      var selectElement = document.getElementById("sensor_list");
+      var selectedOptions = [];
+
+      for (var i = 0; i < selectElement.options.length; i++) {
+        var option = selectElement.options[i];
+        if (option.selected) {
+          selectedOptions.push(option.value);
+        }
+      }
+      return selectedOptions
     }
 
-    // Call go to sync future values  
+    // Call backend to sync past values
+    function syncHistoricalValues() {
+      selectedOptions = evalSelected()
+      //console.log("SensorID: " + selectedOptions)
+      // Encode the list as a query parameter
+      const queryParams = selectedOptions.join('&selectedOptions=');
+
+      // Make a GET request to Python backend
+      fetch(`../api/getHistoricalSensorValues?selectedOptions=${queryParams}`)
+        .then(response => response.text())
+        .then(data => {
+          // Display the response from the Python backend
+          document.getElementById('response').textContent = data;
+          console.log(data)
+        })
+        .catch(error => {
+          console.error('Error:', error);
+        });
+      alert('Will sync all historical sensor values available to this date!\n' + selectedOptions);
+      
+    }
+
+    // Call backend to sync future values  
     function syncFutureValues() {
+      selectedOptions = evalSelected()
       alert('Will sync all future sensor values, app will be run in background!');
     }
 
@@ -39,7 +71,7 @@
         const optionElement = document.createElement("option");
 
         // Set the value and text of the <option> element
-        optionElement.value = sensor.sensorId;
+        optionElement.value = sensor.deviceId + "/" + sensor.sensorId;
         optionElement.text = sensor.deviceName + " / " + sensor.sensorName;
 
         // Append the <option> element to the <select> element
@@ -76,7 +108,7 @@
 
     // Main function
     function loadStuff() {
-      $.get("http://localhost:8080/devices", function (data) {
+      $.get("/devices", function (data) {
         const sensors = parseSensorData(data);
         console.log("Sensors: ", sensors)
         displaySensorsAndElements(sensors)
