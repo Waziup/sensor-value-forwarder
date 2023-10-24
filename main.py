@@ -311,30 +311,7 @@ def getHistoricalSensorValues(url, body=""):
 
 usock.routerGET("/api/getHistoricalSensorValues", getHistoricalSensorValues)
 
-def workerToSync(thread_id, url):
-    global Target_url
-    global Id
-    global Gps_info
-    global Threshold
-    global DeviceAndSensorIdsSync
-    global SyncedDevices
-
-    # Parse the query parameters from the URL
-    parsed_url = urlparse(url)
-
-    # Iterate through the query parameters, maybe switch?
-    for param in parse_qsl(parsed_url.query):
-        if param[0] == 'selectedOptions':
-            DeviceAndSensorIdsSync.append(param[1])
-        elif param[0] == 'url':
-            Target_url = param[1]
-        elif param[0] == 'id':
-            Id = param[1]
-        elif param[0] == 'gps':
-            Gps_info = param[1]
-        elif param[0] == 'thres':
-            Threshold = int(param[1])
-
+def workerToSync(thread_id, url, DeviceAndSensorIdsSync):
     # MQTT settings
     MQTT_BROKER = "wazigate"
     MQTT_PORT = 1883
@@ -388,40 +365,63 @@ def workerToSync(thread_id, url):
         except Exception as e:
             print("Error:", str(e))
     
-    if DeviceAndSensorIdsSync[0].split("/")[0] not in SyncedDevices:
-        # Introduce list to prevent doubled sync
-        SyncedDevices.append(DeviceAndSensorIdsSync[0].split("/")[0])
 
-        # Create an MQTT client
-        client = mqtt.Client()
-        client.on_connect = on_connect
-        client.on_message = on_message
+    # Introduce list to prevent doubled sync
+    SyncedDevices.append(DeviceAndSensorIdsSync[0].split("/")[0])
 
-        # Connect to the MQTT broker
-        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+    # Create an MQTT client
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.on_message = on_message
 
-        # Start the MQTT client's network loop
-        client.loop_forever()
-    else:
-        print("One or all devices had been already added to the sync!")
+    # Connect to the MQTT broker
+    client.connect(MQTT_BROKER, MQTT_PORT, 60)
+
+    # Start the MQTT client's network loop
+    client.loop_forever()
+
 
 def getFutureValues(url, body=""):
     global Threads
     global ThreadId
+    global Target_url
+    global Id
+    global Gps_info
+    global Threshold
+    global DeviceAndSensorIdsSync
+    global SyncedDevices
+
+    # Parse the query parameters from the URL
+    parsed_url = urlparse(url)
+
+    # Iterate through the query parameters, maybe switch?
+    for param in parse_qsl(parsed_url.query):
+        if param[0] == 'selectedOptions':
+            DeviceAndSensorIdsSync.append(param[1])
+        elif param[0] == 'url':
+            Target_url = param[1]
+        elif param[0] == 'id':
+            Id = param[1]
+        elif param[0] == 'gps':
+            Gps_info = param[1]
+        elif param[0] == 'thres':
+            Threshold = int(param[1])
 
     # Create a thread
-    thread = threading.Thread(target=workerToSync, args=(ThreadId, url))
-    ThreadId += 1
+    if DeviceAndSensorIdsSync[0].split("/")[0] not in SyncedDevices:
+        thread = threading.Thread(target=workerToSync, args=(ThreadId, url, DeviceAndSensorIdsSync))
+        ThreadId += 1
 
-    # Append thread to list
-    Threads.append(thread)
+        # Append thread to list
+        Threads.append(thread)
 
-    # Start the thread
-    thread.start()
+        # Start the thread
+        thread.start()
 
-    # Those threads can run forever, so no need to wait until they finished
+        return 200, None, []
+    else:
+        return 400, b"One or all devices had been already added to the sync!", []
 
-    return 200, None, []
 
 usock.routerGET("/api/getFutureValues", getFutureValues)
 

@@ -48,16 +48,17 @@
       fetch(`../api/getHistoricalSensorValues?selectedOptions=${queryParams}${queryForms}`)
         .then(response => response.text())
         .then(data => {
-          // Display the response from the Python backend
-          document.getElementById('response').textContent = data;
+          if(data != ""){
+            alert(data);
+          }
+          else {
+            alert('Will sync all historical sensor values available to this date!\n' + selectedOptions);
+          }
           console.log(data)
         })
         .catch(error => {
           console.error('Error:', error);
         });
-    
-      alert('Will sync all historical sensor values available to this date!\n' + selectedOptions);
-      
     }
 
     // Call backend to sync future values  
@@ -72,15 +73,18 @@
       fetch(`../api/getFutureValues?selectedOptions=${queryParams}${queryForms}`)
         .then(response => response.text())
         .then(data => {
-          // Display the response from the Python backend
-          document.getElementById('response').textContent = data;
+          if(data != ""){
+            alert(data);
+          }
+          else {
+            alert('Will sync all future sensor values, app will be run in background!\n' + selectedOptions);
+          }
           console.log(data)
         })
         .catch(error => {
           console.error('Error:', error);
         });
       // TODO: only show if successful 
-      alert('Will sync all future sensor values, app will be run in background!');
     }
 
     // JavaScript function to toggle visibility
