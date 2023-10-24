@@ -13,8 +13,8 @@
   <script type="text/javascript">
     // Get selected items from 
     function evalSelected() {
-      var selectElement = document.getElementById("sensor_list");
       var selectedOptions = [];
+      var selectElement = document.getElementById("sensor_list");
 
       for (var i = 0; i < selectElement.options.length; i++) {
         var option = selectElement.options[i];
@@ -25,15 +25,27 @@
       return selectedOptions
     }
 
+    function parseForms() {
+      var target_url = document.getElementById("url_form")
+      var id = document.getElementById("id_form")
+      var gps_info = document.getElementById("gps_form")
+      var temp_thres = document.getElementById("thres_form")
+
+      const Params = "&url=" + target_url.value + "&id=" + id.value + "&gps=" + gps_info.value + "&thres=" + temp_thres.value
+
+      return Params
+    }
+
     // Call backend to sync past values
     function syncHistoricalValues() {
       selectedOptions = evalSelected()
       //console.log("SensorID: " + selectedOptions)
-      // Encode the list as a query parameter
+      // Encode the list as a query parameter & all other forms
       const queryParams = selectedOptions.join('&selectedOptions=');
+      const queryForms = parseForms() 
 
       // Make a GET request to Python backend
-      fetch(`../api/getHistoricalSensorValues?selectedOptions=${queryParams}`)
+      fetch(`../api/getHistoricalSensorValues?selectedOptions=${queryParams}${queryForms}`)
         .then(response => response.text())
         .then(data => {
           // Display the response from the Python backend
@@ -52,11 +64,12 @@
     function syncFutureValues() {
       selectedOptions = evalSelected()
 
-      // Encode the list as a query parameter
+      // Encode the list as a query parameter & all other forms
       const queryParams = selectedOptions.join('&selectedOptions=');
+      const queryForms = parseForms() 
 
       // Make a GET request to Python backend
-      fetch(`../api/getFutureValues?selectedOptions=${queryParams}`)
+      fetch(`../api/getFutureValues?selectedOptions=${queryParams}${queryForms}`)
         .then(response => response.text())
         .then(data => {
           // Display the response from the Python backend
@@ -66,7 +79,7 @@
         .catch(error => {
           console.error('Error:', error);
         });
-
+      // TODO: only show if successful 
       alert('Will sync all future sensor values, app will be run in background!');
     }
 
@@ -142,35 +155,30 @@
   </script>
 </head>
 
-<body style="height: 100%;">
-  <div class="center">
-    <h1>Sensor Value Forwarder</h1>
-    <p>This application forwards sensor values received by WaziGate to an endpoint.</p>
+<body>
+    <div class="center">
+        <h1>Sensor Value Forwarder</h1>
+        <p>This application forwards sensor values received by WaziGate to an endpoint.</p>
 
-    <div class="input_elements" style="display: none;">
-      <label for="address_form">Endpoint URL:</label>
-      <input type="text" name="address_form"
-        value="http://urbane-middleware.northeurope.cloudapp.azure.com:8443/iotsensor/weather">
-      <br>
-      <label for="device_id">Set an ID for the sensor:</label>
-      <input type="text" name="device_id"
-        value="12367897465874">
-      <br>
-      <label for="gps">GPS coordinates of sensor:</label>
-      <input type="text" name="gps"
-        value="51.023591, 13.744087">
-      <br>
-      <label for="threshold">Temporal threshold in seconds:</label>
-      <input type="text" name="threshold"
-        value="1">
-      <br>
-
-      <select id="sensor_list" multiple size="6"></select>
-      <button type="button" onclick="syncHistoricalValues()">Sync all historical sensor values</button>
-      <button type="button" onclick="syncFutureValues()">Sync all future sensor values</button>
+        <div class="input_elements">
+            <label for="address_form">Endpoint URL:</label>
+            <input id="url_form" type="text" name="address_form" value="http://urbane-middleware.northeurope.cloudapp.azure.com:8443/iotsensor/weather">
+            <br>
+            <label for="device_id">Set an ID for the sensor:</label>
+            <input id="id_form" type="text" name="device_id" value="12367897465874">
+            <br>
+            <label for="gps">GPS coordinates of sensor:</label>
+            <input id="gps_form" type="text" name="gps" value="51.023591, 13.744087">
+            <br>
+            <label for="threshold">Temporal threshold in seconds:</label>
+            <input id="thres_form" type="text" name="threshold" value="1">
+            <br>
+            <label for="sensor_list">Attached Devices / Sensors:</label>
+            <select id="sensor_list" multiple size="6"></select>
+            <button type="button" onclick="syncHistoricalValues()">Sync all historical sensor values</button>
+            <button type="button" onclick="syncFutureValues()">Sync all future sensor values</button>
+        </div>
     </div>
-    <h2 id="sensor_list"></h2>
-  </div>
 </body>
 
 </html>
