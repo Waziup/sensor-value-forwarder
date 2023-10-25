@@ -2,13 +2,15 @@ FROM python:slim-buster
 
 COPY . /root/src/
 
-RUN  pip install requests
+RUN  pip install requests && \
+     pip install paho-mqtt
 
 RUN  apt-get update \
      && apt-get install -y \
      curl \
      zip \
      && cd /root/src/ \
+     && mkdir -p /var/lib/waziapp \
      && zip /index.zip docker-compose.yml package.json
 
 #----------------------------#

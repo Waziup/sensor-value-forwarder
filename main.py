@@ -3,7 +3,8 @@
 
 #!/usr/bin/python
 from datetime import datetime, timedelta
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import parse_qsl, urlparse, parse_qs
+from requests.auth import HTTPBasicAuth
 import requests
 import urllib
 import usock
@@ -13,12 +14,16 @@ import paho.mqtt.client as mqtt
 import json
 import threading
 
+
 #---------------------#
 
-usock.sockAddr = "proxy.sock"
+usock.sockAddr = "/var/lib/waziapp/proxy.sock" # Production mode
+
+#usock.sockAddr = "proxy.sock" # Debug mode
 
 # URL of API to retrive devices
-DeviceApiUrl = "http://localhost:8080/devices/"
+DeviceApiUrl = "http://wazigate/devices/" # Production mode
+#DeviceApiUrl = "http://localhost:8080/devices/" # Debug mode
 
 # Path to the root of the code
 PATH = os.path.dirname(os.path.abspath(__file__))
@@ -44,10 +49,6 @@ ThreadId = 0
 
 # Already synced devices
 SyncedDevices = []
-
-# Database settings
-DB_API_KEY = ""
-
 
 
 #---------------------#
@@ -106,25 +107,19 @@ usock.routerPOST("/ui/(.*)", ui)
 #------------------#
 
 
-def time(url, body=""):
-    import datetime
-    dateAndTime = datetime.datetime.now().strftime("%B %d %Y %H:%M:%S")
-
-    out = str.encode(dateAndTime)
-    return 200, out, []
-
-
-usock.routerGET("/time", time)
-
-#------------------#
 # Helper function to create json for one message and send to endpoint
-def postMessageToEndpoint(data):
+def postMessageToEndpoint(data, usr, passw):
+    # Create a session
+    session = requests.Session()
+
+    # Set the auth
+    session.auth = HTTPBasicAuth(usr, passw)
+
     # Convert the dictionary to JSON format
     json_data = json.dumps(data)
     
     # Forward data to the database
-    headers = {"Authorization": "Bearer " + DB_API_KEY}
-    response = requests.post(Target_url, json=json_data, headers=headers)
+    response = session.post(Target_url, json=json_data)
 
     m = ""
     if response.status_code == 200:
@@ -136,14 +131,20 @@ def postMessageToEndpoint(data):
     
 
 # Helper function to create json for multiple messages and send to endpoint
-def postMessagesToEndpoint(connected_data):
+def postMessagesToEndpoint(connected_data, usr, passw):
+    # Create a session
+    session = requests.Session()
+
+    # Set the auth
+    session.auth = HTTPBasicAuth(usr, passw)
+
     # Iterate through the list and send each dictionary as a JSON POST request
     for dictionary in connected_data:
         # Convert the dictionary to JSON format
         json_data = json.dumps(dictionary)
         
         # Send a POST request with the JSON data to the database endpoint
-        response = requests.post(Target_url, json=json_data)
+        response = session.post(Target_url, json=json_data)
         
         # Check the response status (optional)
         m = ""
@@ -201,8 +202,8 @@ def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
     # Parse the ISO string into a datetime object
     dateObject = datetime.fromisoformat(time)
     # Subtract and add 5 seconds to get interval
-    fromObject = dateObject - timedelta(seconds=Threshold)
-    toObject = dateObject + timedelta(seconds=Threshold)
+    fromObject = dateObject - timedelta(seconds=int(Threshold))
+    toObject = dateObject + timedelta(seconds=int(Threshold))
 
     # Search all other choosen sensors to see if there are occurances too
     for sensor in deviceAndSensorIds:
@@ -243,7 +244,7 @@ def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
     return allSensorsDict
 
 # Get historical sensor values from WaziGates API
-def getHistoricalSensorValues(url, body=""):
+def getHistoricalSensorValues(url, body):
     global Target_url
     global Id
     global Gps_info
@@ -255,24 +256,34 @@ def getHistoricalSensorValues(url, body=""):
     deviceAndSensorIds = []
 
     # Parse the query parameters from the URL
-    parsed_url = urlparse(url)
+    #parsed_url = urlparse(url)
 
     # Retrieve the list of deviceAndSensorIds from the 'selectedOptions' query parameter
     #deviceAndSensorIds = [param[1] for param in parse_qsl(parsed_url.query) if param[0] == 'selectedOptions']
 
+    # # Iterate through the query parameters, maybe switch?
+    # for param in parse_qsl(parsed_url.query):
+    #     if param[0] == 'selectedOptions':
+    #         deviceAndSensorIds.append(param[1])
+    #     elif param[0] == 'url':
+    #         Target_url = param[1]
+    #     elif param[0] == 'id':
+    #         Id = param[1]
+    #     elif param[0] == 'gps':
+    #         Gps_info = param[1]
+    #     elif param[0] == 'thres':
+    #         Threshold = int(param[1])
 
-    # Iterate through the query parameters, maybe switch?
-    for param in parse_qsl(parsed_url.query):
-        if param[0] == 'selectedOptions':
-            deviceAndSensorIds.append(param[1])
-        elif param[0] == 'url':
-            Target_url = param[1]
-        elif param[0] == 'id':
-            Id = param[1]
-        elif param[0] == 'gps':
-            Gps_info = param[1]
-        elif param[0] == 'thres':
-            Threshold = int(param[1])
+    # Parse the query parameters from Body
+    parsed_data = parse_qs(body.decode('utf-8'))
+
+    deviceAndSensorIds = parsed_data.get('selectedOptions', [])
+    Target_url = parsed_data.get('url', [])[0]
+    Id = parsed_data.get('id', [])[0]
+    Gps_info = parsed_data.get('gps', [])[0]
+    Threshold = int(parsed_data.get('thres', [])[0])
+    usr = parsed_data.get('usr')[0]
+    passw = parsed_data.get('passw')[0]
 
     # iterate all sensor devices
     #for sensor in deviceAndSensorIds[0]:
@@ -304,14 +315,13 @@ def getHistoricalSensorValues(url, body=""):
 
     # TODO: Create JSON obeject and do POST to endpoint 
     print("Connected data to POST: ", connected_data)
-    resp = postMessagesToEndpoint(connected_data)
+    resp = postMessagesToEndpoint(connected_data, usr, passw)
 
+    return 200, b"", []
 
-    return 200, None, []
+usock.routerPOST("/api/getHistoricalSensorValues", getHistoricalSensorValues)
 
-usock.routerGET("/api/getHistoricalSensorValues", getHistoricalSensorValues)
-
-def workerToSync(thread_id, url, DeviceAndSensorIdsSync):
+def workerToSync(thread_id, url, DeviceAndSensorIdsSync, usr, passw):
     # MQTT settings
     MQTT_BROKER = "wazigate"
     MQTT_PORT = 1883
@@ -358,7 +368,7 @@ def workerToSync(thread_id, url, DeviceAndSensorIdsSync):
 
                     deviceDict = getSensorAtTheSameTime(DeviceAndSensorIdsSync, data[len(data)-1])
 
-                    resp = postMessageToEndpoint(deviceDict)
+                    resp = postMessageToEndpoint(deviceDict, usr, passw)
 
             alreadySyncedDevices.clear()    
 
@@ -381,7 +391,7 @@ def workerToSync(thread_id, url, DeviceAndSensorIdsSync):
     client.loop_forever()
 
 
-def getFutureValues(url, body=""):
+def getFutureValues(url, body):
     global Threads
     global ThreadId
     global Target_url
@@ -391,25 +401,36 @@ def getFutureValues(url, body=""):
     global DeviceAndSensorIdsSync
     global SyncedDevices
 
-    # Parse the query parameters from the URL
-    parsed_url = urlparse(url)
+    # # Parse the query parameters from the URL
+    # parsed_url = urlparse(url)
 
-    # Iterate through the query parameters, maybe switch?
-    for param in parse_qsl(parsed_url.query):
-        if param[0] == 'selectedOptions':
-            DeviceAndSensorIdsSync.append(param[1])
-        elif param[0] == 'url':
-            Target_url = param[1]
-        elif param[0] == 'id':
-            Id = param[1]
-        elif param[0] == 'gps':
-            Gps_info = param[1]
-        elif param[0] == 'thres':
-            Threshold = int(param[1])
+    # # Iterate through the query parameters, maybe switch?
+    # for param in parse_qsl(parsed_url.query):
+    #     if param[0] == 'selectedOptions':
+    #         DeviceAndSensorIdsSync.append(param[1])
+    #     elif param[0] == 'url':
+    #         Target_url = param[1]
+    #     elif param[0] == 'id':
+    #         Id = param[1]
+    #     elif param[0] == 'gps':
+    #         Gps_info = param[1]
+    #     elif param[0] == 'thres':
+    #         Threshold = int(param[1])
+
+    # Parse the query parameters from Body
+    parsed_data = parse_qs(body.decode('utf-8'))
+
+    DeviceAndSensorIdsSync = parsed_data.get('selectedOptions', [])
+    Target_url = parsed_data.get('url', [])[0]
+    Id = parsed_data.get('id', [])[0]
+    Gps_info = parsed_data.get('gps', [])[0]
+    Threshold = int(parsed_data.get('thres', [])[0])
+    usr = parsed_data.get('usr')[0]
+    passw = parsed_data.get('passw')[0]
 
     # Create a thread
     if DeviceAndSensorIdsSync[0].split("/")[0] not in SyncedDevices:
-        thread = threading.Thread(target=workerToSync, args=(ThreadId, url, DeviceAndSensorIdsSync))
+        thread = threading.Thread(target=workerToSync, args=(ThreadId, url, DeviceAndSensorIdsSync, usr, passw))
         ThreadId += 1
 
         # Append thread to list
@@ -418,12 +439,12 @@ def getFutureValues(url, body=""):
         # Start the thread
         thread.start()
 
-        return 200, None, []
+        return 200, b"", []
     else:
         return 400, b"One or all devices had been already added to the sync!", []
 
 
-usock.routerGET("/api/getFutureValues", getFutureValues)
+usock.routerPOST("/api/getFutureValues", getFutureValues)
 
 #------------------#
 

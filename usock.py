@@ -6,8 +6,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 
 
-#sockAddr = "/root/app/proxy.sock"   # Default path
-sockAddr = "proxy.sock"            # For debug mode
+sockAddr = "/var/lib/waziapp/proxy.sock"   # Default path
+#sockAddr = "proxy.sock"            # For debug mode
 
 # ----------------- #
 
@@ -67,7 +67,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         except Exception as e:
             print("Error: ", e)
             resCode = 404
-            resBody = b"Not found"
+            resBody = b"Route not found"
             resHeaders = []
 
         self.send(resCode, resBody, resHeaders)

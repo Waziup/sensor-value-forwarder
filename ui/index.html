@@ -30,31 +30,40 @@
       var id = document.getElementById("id_form")
       var gps_info = document.getElementById("gps_form")
       var temp_thres = document.getElementById("thres_form")
+      var usr = document.getElementById("username_form")
+      var passw = document.getElementById("password_form")
 
-      const Params = "&url=" + target_url.value + "&id=" + id.value + "&gps=" + gps_info.value + "&thres=" + temp_thres.value
+      const Params = "&url=" + encodeURIComponent(target_url.value) + "&id=" + encodeURIComponent(id.value) + "&gps=" + encodeURIComponent(gps_info.value) + "&thres=" + encodeURIComponent(temp_thres.value) + "&usr=" + encodeURIComponent(usr.value) + "&passw=" + encodeURIComponent(passw.value)
 
       return Params
     }
 
     // Call backend to sync past values
     function syncHistoricalValues() {
-      selectedOptions = evalSelected()
+      selectedOptions = evalSelected();
       //console.log("SensorID: " + selectedOptions)
+
       // Encode the list as a query parameter & all other forms
       const queryParams = selectedOptions.join('&selectedOptions=');
       const queryForms = parseForms() 
 
       // Make a GET request to Python backend
-      fetch(`../api/getHistoricalSensorValues?selectedOptions=${queryParams}${queryForms}`)
+      fetch(`../api/getHistoricalSensorValues`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `selectedOptions=${queryParams}${queryForms}`,
+      })
         .then(response => response.text())
         .then(data => {
-          if(data != ""){
+          if(data != "") {
             alert(data);
           }
           else {
             alert('Will sync all historical sensor values available to this date!\n' + selectedOptions);
           }
-          console.log(data)
+          console.log(data);
         })
         .catch(error => {
           console.error('Error:', error);
@@ -63,34 +72,43 @@
 
     // Call backend to sync future values  
     function syncFutureValues() {
-      selectedOptions = evalSelected()
+      selectedOptions = evalSelected();
 
       // Encode the list as a query parameter & all other forms
       const queryParams = selectedOptions.join('&selectedOptions=');
-      const queryForms = parseForms() 
+      const queryForms = parseForms();
 
-      // Make a GET request to Python backend
-      fetch(`../api/getFutureValues?selectedOptions=${queryParams}${queryForms}`)
+      // // Make a GET request to Python backend with query params in URL
+      // fetch(`../api/getFutureValues?selectedOptions=${queryParams}${queryForms}`)
+      //   .then(response => response.text())
+      //   .then(data => {
+      // Make a GET request to Python backend with query params in body
+      fetch(`../api/getFutureValues`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `selectedOptions=${queryParams}${queryForms}`,
+      })
         .then(response => response.text())
         .then(data => {
-          if(data != ""){
+          if(data != "") {
             alert(data);
           }
           else {
             alert('Will sync all future sensor values, app will be run in background!\n' + selectedOptions);
           }
-          console.log(data)
+          console.log(data);
         })
         .catch(error => {
           console.error('Error:', error);
         });
-      // TODO: only show if successful 
     }
 
     // JavaScript function to toggle visibility
     function showElements() {
       var inputElements = document.querySelector('.input_elements');
-      inputElements.style.display = "block"
+      inputElements.style.display = "block";
     }
 
     // Display Snesor values and other elements
@@ -167,6 +185,12 @@
         <div class="input_elements">
             <label for="address_form">Endpoint URL:</label>
             <input id="url_form" type="text" name="address_form" value="http://urbane-middleware.northeurope.cloudapp.azure.com:8443/iotsensor/weather">
+            <br>
+            <label for="user_form">Username for Endpoint:</label>
+            <input id="username_form" type="text" name="user_form" value="username">
+            <br>
+            <label for="pass_form">Password for Endpoint:</label>
+            <input id="password_form" type="text" name="pass_form" value="password">
             <br>
             <label for="device_id">Set an ID for the sensor:</label>
             <input id="id_form" type="text" name="device_id" value="12367897465874">
