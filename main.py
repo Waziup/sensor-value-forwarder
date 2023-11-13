@@ -116,10 +116,10 @@ def postMessageToEndpoint(data, usr, passw):
     session.auth = HTTPBasicAuth(usr, passw)
 
     # Convert the dictionary to JSON format
-    json_data = json.dumps(data)
+    #json_data = json.dumps(data)
     
     # Forward data to the database
-    response = session.post(Target_url, json=json_data)
+    response = session.post(Target_url, json=data)
 
     m = ""
     if response.status_code == 200:
@@ -141,10 +141,10 @@ def postMessagesToEndpoint(connected_data, usr, passw):
     # Iterate through the list and send each dictionary as a JSON POST request
     for dictionary in connected_data:
         # Convert the dictionary to JSON format
-        json_data = json.dumps(dictionary)
+        #json_data = json.dumps(dictionary)
         
         # Send a POST request with the JSON data to the database endpoint
-        response = session.post(Target_url, json=json_data)
+        response = session.post(Target_url, json=dictionary)
         
         # Check the response status (optional)
         m = ""
@@ -336,9 +336,6 @@ def workerToSync(thread_id, url, DeviceAndSensorIdsSync, usr, passw):
     def on_message(client, userdata, msg):
         alreadySyncedDevices = []
         try:
-            # Decode the incoming MQTT message
-            message = msg.payload.decode("utf-8")
-
             for deviceAndSensor in DeviceAndSensorIdsSync:
                 currentDeviceId = deviceAndSensor.split("/")[0]
                 currentDeviceIdInTopic = msg.topic.split("/")[1]
