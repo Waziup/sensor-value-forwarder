@@ -233,8 +233,13 @@ def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
 
                 # Add values to the all_Sensors_dict
                 if len(response_ok) != 0:
-                    nameToAdd = mapping[sensor.split("/")[1]]
-                    allSensorsDict[nameToAdd] = response_ok[0]["value"]
+                    try:
+                        nameToAdd = mapping[sensor.split("/")[1]]
+                        allSensorsDict[nameToAdd] = response_ok[0]["value"]
+                    except: 
+                        # For sensor devices that are not a weather station 
+                        nameToAdd = sensor.split("/")[1]
+                        allSensorsDict[nameToAdd] = response_ok[0]["value"]
             else:
                 print("Request failed with status code:", response.status_code)
         except requests.exceptions.RequestException as e:
