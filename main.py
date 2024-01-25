@@ -234,6 +234,7 @@ def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
                 # Add values to the all_Sensors_dict
                 if len(response_ok) != 0:
                     try:
+                        # For sensors that are a SenseCap S2120 weather station
                         nameToAdd = mapping[sensor.split("/")[1]]
                         allSensorsDict[nameToAdd] = response_ok[0]["value"]
                     except: 
