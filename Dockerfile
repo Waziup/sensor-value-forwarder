@@ -3,7 +3,7 @@ FROM python:slim-buster
 COPY . /root/src/
 
 RUN  pip install requests && \
-     pip install paho-mqtt
+     pip install paho-mqtt==1.6.1
 
 RUN  apt-get update \
      && apt-get install -y \

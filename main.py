@@ -50,6 +50,10 @@ ThreadId = 0
 # Already synced devices
 SyncedDevices = []
 
+# Saved config
+ConfigPath = "/var/lib/waziapp/config.json"     # Production
+#ConfigPath = "config.json"                      # Debug
+
 
 #---------------------#
 
@@ -105,6 +109,93 @@ usock.routerGET("/ui/(.*)", ui)
 usock.routerPOST("/ui/(.*)", ui)
 
 #------------------#
+
+
+# Save config to reload configuration -> only important for sync future values
+def saveConfig(usr, passw):
+    # Organize the variables into a dictionary
+    data = {
+        "DeviceAndSensorIdsSync": DeviceAndSensorIdsSync,
+        "Target_url": Target_url,
+        "Id": Id,
+        "Gps_info": {"lattitude": Gps_info.split(',')[0].lstrip(), "longitude": Gps_info.split(',')[1].lstrip()},
+        "Threshold": Threshold,
+        "usr": usr,
+        "passw": passw
+    }
+
+    # Save the JSON data to the file
+    with open(ConfigPath, 'w') as json_file:
+        json.dump(data, json_file, indent=4)
+
+# Resume operation after restart from data saved in config file
+def resumeAfterRestart():
+    global ThreadId
+    global DeviceAndSensorIdsSync
+    global Target_url
+    global Id
+    global Gps_info
+    global Threshold
+
+    if os.path.isfile(ConfigPath): 
+        print("Found existing config file, load config and sync again!")
+        
+        # Load data from file
+        with open(ConfigPath, 'r') as file:
+            # Parse JSON from the file
+            data = json.load(file)
+
+        # Get choosen sensors
+        DeviceAndSensorIdsSync = data.get('DeviceAndSensorIdsSync', [])
+
+        # Get data from forms
+        Target_url = data.get('Target_url', [])
+        Id = data.get('Id', [])
+        # as string needed
+        Gps_info = data.get('Gps_info', [])
+        Gps_info = Gps_info["lattitude"] + ", " + Gps_info["longitude"]
+        Threshold = int(data.get('Threshold', []))
+        usr = data.get('usr', [])
+        passw = data.get('passw', [])
+
+        # Start sync 
+        thread = threading.Thread(target=workerToSync, args=(ThreadId, DeviceAndSensorIdsSync, usr, passw))
+        ThreadId += 1
+
+        # Append thread to list
+        Threads.append(thread)
+
+        # Start the thread
+        thread.start()
+    else:
+        msg = "Found no existing config file, cannot continue sync."
+        print(msg)
+
+# Fill forms of html page with existing config
+def getConfig(url, body):
+    global DeviceAndSensorIdsSync
+    global Target_url
+    global Id
+    global Gps_info
+    global Threshold
+
+    if os.path.isfile(ConfigPath): 
+        print("Found existing config file, load config and display it again!")
+        
+        # Load data from file
+        with open(ConfigPath, 'r') as file:
+            # Parse JSON from the file
+            data = json.load(file)    
+
+        # send to frontend to fill forms of html page with existing config
+        return 200, bytes(json.dumps(data), "utf8"), []
+    else:
+        response_data = {"config": False}
+        status_code = 404
+
+        return status_code, bytes(json.dumps(response_data), "utf8"), []
+    
+usock.routerGET("/api/getConfig", getConfig)
 
 
 # Helper function to create json for one message and send to endpoint
@@ -197,8 +288,8 @@ def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
     allSensorsDict["sensorId"] = Id
     # Set GPS coordinates
     coordinates = Gps_info.split(",")
-    allSensorsDict["longitude"] = coordinates[1]
-    allSensorsDict["latitude"] = coordinates[0]
+    allSensorsDict["longitude"] = round(float(coordinates[1]), 6)
+    allSensorsDict["latitude"] = round(float(coordinates[0]), 6)
     # Parse the ISO string into a datetime object
     dateObject = datetime.fromisoformat(time)
     # Subtract and add 5 seconds to get interval
@@ -236,7 +327,7 @@ def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
                     try:
                         # For sensors that are a SenseCap S2120 weather station
                         nameToAdd = mapping[sensor.split("/")[1]]
-                        allSensorsDict[nameToAdd] = response_ok[0]["value"]
+                        allSensorsDict[nameToAdd] = round(response_ok[0]["value"], 1)
                     except: 
                         # For sensor devices that are not a weather station 
                         nameToAdd = sensor.split("/")[1]
@@ -327,7 +418,7 @@ def getHistoricalSensorValues(url, body):
 
 usock.routerPOST("/api/getHistoricalSensorValues", getHistoricalSensorValues)
 
-def workerToSync(thread_id, url, DeviceAndSensorIdsSync, usr, passw):
+def workerToSync(thread_id, DeviceAndSensorIdsSync, usr, passw):
     # MQTT settings
     MQTT_BROKER = "wazigate"
     MQTT_PORT = 1883
@@ -433,7 +524,7 @@ def getFutureValues(url, body):
 
     # Create a thread
     if DeviceAndSensorIdsSync[0].split("/")[0] not in SyncedDevices:
-        thread = threading.Thread(target=workerToSync, args=(ThreadId, url, DeviceAndSensorIdsSync, usr, passw))
+        thread = threading.Thread(target=workerToSync, args=(ThreadId, DeviceAndSensorIdsSync, usr, passw))
         ThreadId += 1
 
         # Append thread to list
@@ -442,10 +533,12 @@ def getFutureValues(url, body):
         # Start the thread
         thread.start()
 
+        # Save data to preserve given information on reload or resume of docker container (reboot) 
+        saveConfig(usr, passw)
+
         return 200, b"", []
     else:
         return 400, b"One or all devices had been already added to the sync!", []
-
 
 usock.routerPOST("/api/getFutureValues", getFutureValues)
 
@@ -453,4 +546,5 @@ usock.routerPOST("/api/getFutureValues", getFutureValues)
 
 
 if __name__ == "__main__":
-    usock.start()
+    resumeAfterRestart()
+    usock.start() 
