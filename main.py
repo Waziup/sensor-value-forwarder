@@ -3,6 +3,7 @@
 
 #!/usr/bin/python
 from datetime import datetime, timedelta
+import time
 from urllib.parse import parse_qsl, urlparse, parse_qs
 from requests.auth import HTTPBasicAuth
 import requests
@@ -51,8 +52,8 @@ ThreadId = 0
 SyncedDevices = []
 
 # Saved config
-ConfigPath = "/var/lib/waziapp/config.json"     # Production
-#ConfigPath = "config.json"                      # Debug
+#ConfigPath = "/var/lib/waziapp/config.json"     # Production
+ConfigPath = "config.json"                      # Debug
 
 
 #---------------------#
@@ -158,9 +159,8 @@ def resumeAfterRestart():
         usr = data.get('usr', [])
         passw = data.get('passw', [])
 
-        # Start sync 
-        thread = threading.Thread(target=workerToSync, args=(ThreadId, DeviceAndSensorIdsSync, usr, passw))
-        ThreadId += 1
+        # Start sync         
+        thread = WorkerThread(DeviceAndSensorIdsSync, usr, passw)
 
         # Append thread to list
         Threads.append(thread)
@@ -418,71 +418,87 @@ def getHistoricalSensorValues(url, body):
 
 usock.routerPOST("/api/getHistoricalSensorValues", getHistoricalSensorValues)
 
-def workerToSync(thread_id, DeviceAndSensorIdsSync, usr, passw):
-    # MQTT settings
-    MQTT_BROKER = "wazigate"
-    MQTT_PORT = 1883
-    MQTT_TOPIC = "devices/+"
+class WorkerThread(threading.Thread):
+    def __init__(self, DeviceAndSensorIdsSync, usr, passw):
+        super(WorkerThread, self).__init__()
+        self.DeviceAndSensorIdsSync = DeviceAndSensorIdsSync
+        self.usr = usr
+        self.passw = passw
+        self._stop_event = threading.Event()
 
-    # MQTT on_connect callback
-    def on_connect(client, userdata, flags, rc):
-        print("Connected to MQTT broker with result code " + str(rc))
-        client.subscribe(MQTT_TOPIC)
+    def on_stop(self):
+        self._stop_event.set()
 
-    # MQTT on_message callback
-    def on_message(client, userdata, msg):
-        alreadySyncedDevices = []
-        try:
-            for deviceAndSensor in DeviceAndSensorIdsSync:
-                currentDeviceId = deviceAndSensor.split("/")[0]
-                currentDeviceIdInTopic = msg.topic.split("/")[1]
-                if currentDeviceId == currentDeviceIdInTopic and currentDeviceId not in alreadySyncedDevices:
-                    # Add to list to prevent duplicates
-                    alreadySyncedDevices.append(currentDeviceId)
-                    print("The device " + currentDeviceId + " is set to sync.")
+    def run(self):
+        # MQTT settings
+        MQTT_BROKER = "wazigate"
+        MQTT_PORT = 1883
+        MQTT_TOPIC = "devices/+"
 
-                    # Make API Call for first in list
-                    api_url = DeviceApiUrl + DeviceAndSensorIdsSync[0].split('/')[0] + "/sensors/" + DeviceAndSensorIdsSync[0].split('/')[1] + "/values"
+        # MQTT on_connect callback
+        def on_connect(client, userdata, flags, rc):
+            print("Connected to MQTT broker with result code " + str(rc))
+            client.subscribe(MQTT_TOPIC)
 
-                    try:
-                        # Send a GET request to the API
-                        response = requests.get(api_url)
+        # MQTT on_message callback
+        def on_message(client, userdata, msg):
+            if not self._stop_event.is_set():
+                alreadySyncedDevices = []
+                try:
+                    for deviceAndSensor in self.DeviceAndSensorIdsSync:
+                        currentDeviceId = deviceAndSensor.split("/")[0]
+                        currentDeviceIdInTopic = msg.topic.split("/")[1]
+                        if currentDeviceId == currentDeviceIdInTopic and currentDeviceId not in alreadySyncedDevices:
+                            # Add to list to prevent duplicates
+                            alreadySyncedDevices.append(currentDeviceId)
+                            print("The device " + currentDeviceId + " is set to sync.")
 
-                        # Check if the request was successful (status code 200)
-                        if response.status_code == 200:
-                            # The response content contains the data from the API
-                            data = response.json()
-                        else:
-                            print("Request failed with status code:", response.status_code)
-                    except requests.exceptions.RequestException as e:
-                        # Handle request exceptions (e.g., connection errors)
-                        print("Request error:", e)
+                            # Make API Call for first in list
+                            api_url = DeviceApiUrl + self.DeviceAndSensorIdsSync[0].split('/')[0] + "/sensors/" + self.DeviceAndSensorIdsSync[0].split('/')[1] + "/values"
 
-                    # Use helper to retrieve other sensors from device
+                            try:
+                                # Send a GET request to the API
+                                response = requests.get(api_url)
 
-                    deviceDict = getSensorAtTheSameTime(DeviceAndSensorIdsSync, data[len(data)-1])
+                                # Check if the request was successful (status code 200)
+                                if response.status_code == 200:
+                                    # The response content contains the data from the API
+                                    data = response.json()
+                                else:
+                                    print("Request failed with status code:", response.status_code)
+                            except requests.exceptions.RequestException as e:
+                                # Handle request exceptions (e.g., connection errors)
+                                print("Request error:", e)
 
-                    resp = postMessageToEndpoint(deviceDict, usr, passw)
+                            # Use helper to retrieve other sensors from device
+                            deviceDict = getSensorAtTheSameTime(self.DeviceAndSensorIdsSync, data[len(data) - 1])
+                            resp = postMessageToEndpoint(deviceDict, self.usr, self.passw)
 
-            alreadySyncedDevices.clear()    
+                    alreadySyncedDevices.clear()
 
-        except Exception as e:
-            print("Error:", str(e))
-    
+                except Exception as e:
+                    print("Error:", str(e))
 
-    # Introduce list to prevent doubled sync
-    SyncedDevices.append(DeviceAndSensorIdsSync[0].split("/")[0])
+        # Introduce list to prevent doubled sync
+        SyncedDevices.append(self.DeviceAndSensorIdsSync[0].split("/")[0])
 
-    # Create an MQTT client
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.on_message = on_message
+        # Create an MQTT client
+        client = mqtt.Client()
+        client.on_connect = on_connect
+        client.on_message = on_message
 
-    # Connect to the MQTT broker
-    client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        # Connect to the MQTT broker
+        client.connect(MQTT_BROKER, MQTT_PORT, 60)
 
-    # Start the MQTT client's network loop
-    client.loop_forever()
+        # Start the MQTT client's network loop
+        client.loop_start()
+
+        while not self._stop_event.is_set():
+            # Periodically check the stop event and exit the loop if set
+            time.sleep(1)
+
+        # Stop the MQTT client's network loop when the thread is stopped
+        client.loop_stop()
 
 
 def getFutureValues(url, body):
@@ -524,8 +540,7 @@ def getFutureValues(url, body):
 
     # Create a thread
     if DeviceAndSensorIdsSync[0].split("/")[0] not in SyncedDevices:
-        thread = threading.Thread(target=workerToSync, args=(ThreadId, DeviceAndSensorIdsSync, usr, passw))
-        ThreadId += 1
+        thread = WorkerThread(DeviceAndSensorIdsSync, usr, passw)
 
         # Append thread to list
         Threads.append(thread)
@@ -538,9 +553,35 @@ def getFutureValues(url, body):
 
         return 200, b"", []
     else:
-        return 400, b"One or all devices had been already added to the sync!", []
+        return 400, b"One or all devices had been already added to the sync!\nIf you want to continue the current synchronization with the displayed configuration, press the Okay button.\nTo stop the current synchronization press the Cancel button.", []
 
 usock.routerPOST("/api/getFutureValues", getFutureValues)
+
+# Just kill all threads and stop sync
+def stopSync(url, body):
+    global SyncedDevices
+
+    for thread in Threads:
+        # To stop the thread by its ID:
+        #kill_thread(thread)
+        thread.on_stop()
+
+    # Empty list of devices
+    SyncedDevices = []
+
+    # Delete config file
+    try:
+        # Attempt to remove the file
+        os.remove(ConfigPath)
+        print(f"File {ConfigPath} has been successfully deleted.")
+    except FileNotFoundError:
+        print(f"File {ConfigPath} not found.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    return 200, b"The Sync was stopped!", []
+
+usock.routerGET("/api/stopSync", stopSync)
 
 #------------------#
 

@@ -21,7 +21,7 @@
             alert('No saved config present!');
           }
           else {
-            alert('There is a saved config:');
+            alert('There is a saved config.');
 
             // Get HTML elements: Select and forms
             var sensor_list_select = document.getElementById("sensor_list");
@@ -139,7 +139,25 @@
         .then(response => response.text())
         .then(data => {
           if (data != "") {
-            alert(data);
+            // alert(data);
+            const userResponse = window.confirm(data);
+            if (userResponse) {
+              // User clicked "OK"
+              console.log("User chose to proceed.");
+            } else {
+              // User clicked "Cancel"
+              console.log("User chose to cancel.");
+              fetch(`../api/stopSync`)
+              .then(response => response.text())
+              .then(data => {
+                if (data !== "") {
+                  alert(data);
+                }
+              })
+              .catch(error => {
+                console.error('Error:', error);
+              });
+            }
           }
           else {
             alert('Will sync all future sensor values, app will be run in background!\n' + selectedOptions);
