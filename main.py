@@ -3,8 +3,10 @@
 
 #!/usr/bin/python
 from datetime import datetime, timedelta
+import re
 import time
 from urllib.parse import parse_qsl, urlparse, parse_qs
+from urllib3.exceptions import InsecureRequestWarning
 from requests.auth import HTTPBasicAuth
 import requests
 import urllib
@@ -14,17 +16,19 @@ import pathlib
 import paho.mqtt.client as mqtt
 import json
 import threading
+import warnings
+
 
 
 #---------------------#
 
-usock.sockAddr = "/var/lib/waziapp/proxy.sock" # Production mode
+#usock.sockAddr = "/var/lib/waziapp/proxy.sock" # Production mode
 
-#usock.sockAddr = "proxy.sock" # Debug mode
+usock.sockAddr = "proxy.sock" # Debug mode
 
 # URL of API to retrive devices
-DeviceApiUrl = "http://wazigate/devices/" # Production mode
-#DeviceApiUrl = "http://localhost:8080/devices/" # Debug mode
+#DeviceApiUrl = "http://wazigate/devices/" # Production mode
+DeviceApiUrl = "http://localhost:8080/devices/" # Debug mode
 
 # Path to the root of the code
 PATH = os.path.dirname(os.path.abspath(__file__))
@@ -51,9 +55,11 @@ ThreadId = 0
 # Already synced devices
 SyncedDevices = []
 
+Auth = "basic"
+
 # Saved config
 #ConfigPath = "/var/lib/waziapp/config.json"     # Production
-ConfigPath = "config.json"                      # Debug
+ConfigPath = "config.json"                      # Debug mode
 
 
 #---------------------#
@@ -122,7 +128,8 @@ def saveConfig(usr, passw):
         "Gps_info": {"lattitude": Gps_info.split(',')[0].lstrip(), "longitude": Gps_info.split(',')[1].lstrip()},
         "Threshold": Threshold,
         "usr": usr,
-        "passw": passw
+        "passw": passw,
+        "auth": Auth
     }
 
     # Save the JSON data to the file
@@ -137,6 +144,8 @@ def resumeAfterRestart():
     global Id
     global Gps_info
     global Threshold
+    global Auth
+    global Threads
 
     if os.path.isfile(ConfigPath): 
         print("Found existing config file, load config and sync again!")
@@ -158,6 +167,7 @@ def resumeAfterRestart():
         Threshold = int(data.get('Threshold', []))
         usr = data.get('usr', [])
         passw = data.get('passw', [])
+        Auth = data.get('auth', [])
 
         # Start sync         
         thread = WorkerThread(DeviceAndSensorIdsSync, usr, passw)
@@ -205,12 +215,13 @@ def postMessageToEndpoint(data, usr, passw):
 
     # Set the auth
     session.auth = HTTPBasicAuth(usr, passw)
-
-    # Convert the dictionary to JSON format
-    #json_data = json.dumps(data)
     
+    # Suppress the InsecureRequestWarning
+    session.verify = False  # Disable SSL verification
+    warnings.simplefilter('ignore', InsecureRequestWarning)
+
     # Forward data to the database
-    response = session.post(Target_url, json=data)
+    response = session.post(Target_url, json=data, verify=False)
 
     m = ""
     if response.status_code == 200:
@@ -218,6 +229,7 @@ def postMessageToEndpoint(data, usr, passw):
     else:
         m = "Failed to forward data to the database:" + str(response.status_code)
     print(m)
+    
     return m
     
 
@@ -229,13 +241,17 @@ def postMessagesToEndpoint(connected_data, usr, passw):
     # Set the auth
     session.auth = HTTPBasicAuth(usr, passw)
 
+    # Suppress the InsecureRequestWarning
+    session.verify = False  # Disable SSL verification
+    warnings.simplefilter('ignore', InsecureRequestWarning)
+
     # Iterate through the list and send each dictionary as a JSON POST request
     for dictionary in connected_data:
         # Convert the dictionary to JSON format
         #json_data = json.dumps(dictionary)
         
         # Send a POST request with the JSON data to the database endpoint
-        response = session.post(Target_url, json=dictionary)
+        response = session.post(Target_url, json=dictionary, verify=False)
         
         # Check the response status (optional)
         m = ""
@@ -246,22 +262,58 @@ def postMessagesToEndpoint(connected_data, usr, passw):
     print(m)
     return m
 
+# Helper function to obtain a JWT token
+def get_jwt_token(usr, passw):
+    # Create user credential payload
+    payload = {"username": usr, "password": passw}
+    # Create the URL for the authentication endpoint
+    auth_url = re.sub(r'(:\d+).*$', r'\1', Target_url) + "/user/getToken"
+
+    # Create a session
+    session = requests.Session()    
+    # Suppress the InsecureRequestWarning
+    session.verify = False  # Disable SSL verification
+    warnings.simplefilter('ignore', InsecureRequestWarning)
+
+    # Perform request to obtain token
+    response = session.post(auth_url, json=payload, verify=False)
+
+    # Check if the request was successful
+    if response.status_code == 200:
+        return response.json().get("access_token")  # Adjust if the key is different TODO
+    else:
+        print(f"Failed to obtain token: {response.status_code}, {response.text}")
+        return None
+
+# Helper function to send data using JWT authentication
+def post_message_to_endpoint(data, token):
+    headers = {"Authorization": f"Bearer {token}"}  # Use Bearer token in the header
+
+    # Create a session
+    session = requests.Session()    
+    # Suppress the InsecureRequestWarning
+    session.verify = False  # Disable SSL verification
+    warnings.simplefilter('ignore', InsecureRequestWarning)
+
+    # Forward data to the database endpoint
+    response = session.post(Target_url, json=data, headers=headers, verify=False)
+
+    if response.status_code == 200:
+        print("Data forwarded successfully")
+        return "Data forwarded successfully"
+    else:
+        print(f"Failed to forward data: {response.status_code}, {response.text}")
+        return f"Failed to forward data: {response.status_code}"
+
 # Helper to search other sensor values and 
 def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
-    # TODO: USE THE DECODER NAMES -> TELL THEM, handle case if there are multiple sensor values for a timespan
+    # Mapping names of sensors to the names to endpoints requirements
     mapping = {
         "time": "timeStamp",
         "sensorId": "sensorId",
         "lon": "longitude",
         "lat": "latitude",
-        "Air Temperature": "airTemp",
-        "Air Humidity": "airHum",
-        "Barometric Pressure": "pressure",
-        "Wind Speed": "windSpeed",
-        "Wind Direction Sensor": "windDirection",
-        "Light Intensity": "lightIntensity",
-        "UV Index": "uvIndex",
-        "Rain Gauge": "rainfall"
+        "sensor1": "payload_hex"
     }
 
     # Dict to return in the end
@@ -270,14 +322,7 @@ def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
             "sensorId": None,
             "longitude": None,
             "latitude": None,
-            "airTemp": None,
-            "airHum": None,
-            "pressure": None,
-            "windSpeed": None,
-            "windDirection": None,
-            "lightIntensity": None,
-            "uvIndex": None,
-            "rainfall": None
+            "payload_hex": None
     }
 
     # Get time of first sensor in list
@@ -325,11 +370,11 @@ def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
                 # Add values to the all_Sensors_dict
                 if len(response_ok) != 0:
                     try:
-                        # For sensors that are a SenseCap S2120 weather station
+                        # For sensors that are a related to the Flytrap
                         nameToAdd = mapping[sensor.split("/")[1]]
                         allSensorsDict[nameToAdd] = round(response_ok[0]["value"], 1)
                     except: 
-                        # For sensor devices that are not a weather station 
+                        # For sensor devices that are not a Flytrap 
                         nameToAdd = sensor.split("/")[1]
                         allSensorsDict[nameToAdd] = response_ok[0]["value"]
             else:
@@ -378,9 +423,9 @@ def getHistoricalSensorValues(url, body):
     Target_url = parsed_data.get('url', [])[0]
     Id = parsed_data.get('id', [])[0]
     Gps_info = parsed_data.get('gps', [])[0]
-    Threshold = int(parsed_data.get('thres', [])[0])
     usr = parsed_data.get('usr')[0]
     passw = parsed_data.get('passw')[0]
+    Auth = parsed_data.get('auth')[0]
 
     # iterate all sensor devices
     #for sensor in deviceAndSensorIds[0]:
@@ -412,7 +457,15 @@ def getHistoricalSensorValues(url, body):
 
     # TODO: Create JSON obeject and do POST to endpoint 
     print("Connected data to POST: ", connected_data)
-    resp = postMessagesToEndpoint(connected_data, usr, passw)
+
+    # Send message to endpoint
+    if Auth == "jwt": # ALso token can be old: check if it is still valid
+        token = get_jwt_token(usr, passw)
+        if token:
+            post_message_to_endpoint(connected_data, token) #TODO:needs to write a function to MULTIPLE send data to endpoint
+    else:
+        resp = postMessagesToEndpoint(connected_data, usr, passw)
+        print(resp)
 
     return 200, b"", []
 
@@ -472,7 +525,15 @@ class WorkerThread(threading.Thread):
 
                             # Use helper to retrieve other sensors from device
                             deviceDict = getSensorAtTheSameTime(self.DeviceAndSensorIdsSync, data[len(data) - 1])
-                            resp = postMessageToEndpoint(deviceDict, self.usr, self.passw)
+                            # Send message to endpoint
+                            if Auth == "jwt": # ALso token can be old: check if it is still valid
+                                token = get_jwt_token(self.usr, self.passw)
+                                if token:
+                                    post_message_to_endpoint(deviceDict, token)
+                            else:
+                                resp = postMessageToEndpoint(deviceDict, self.usr, self.passw)
+                                print(resp)
+                            #resp = postMessageToEndpoint(deviceDict, self.usr, self.passw)
 
                     alreadySyncedDevices.clear()
 
@@ -510,6 +571,7 @@ def getFutureValues(url, body):
     global Threshold
     global DeviceAndSensorIdsSync
     global SyncedDevices
+    global Auth
 
     # # Parse the query parameters from the URL
     # parsed_url = urlparse(url)
@@ -534,9 +596,9 @@ def getFutureValues(url, body):
     Target_url = parsed_data.get('url', [])[0]
     Id = parsed_data.get('id', [])[0]
     Gps_info = parsed_data.get('gps', [])[0]
-    Threshold = int(parsed_data.get('thres', [])[0])
     usr = parsed_data.get('usr')[0]
     passw = parsed_data.get('passw')[0]
+    Auth = parsed_data.get('auth')[0]
 
     # Create a thread
     if DeviceAndSensorIdsSync[0].split("/")[0] not in SyncedDevices:
@@ -579,7 +641,7 @@ def stopSync(url, body):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-    return 200, b"The Sync was stopped!", []
+    return 200, b"The synchronisation was stopped! Click on the \"Sync all future sensor values\" button to restart the sync again.", []
 
 usock.routerGET("/api/stopSync", stopSync)
 

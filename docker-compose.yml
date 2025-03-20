@@ -2,8 +2,8 @@ version: "3"
 
 services:
   wazi-app:
-    image: waziup/sensor-value-forwarder:dev
-    container_name: waziup.sensor-value-forwarder
+    image: waziup/sensor-value-forwarder-flytrap:latest
+    container_name: waziup.sensor-value-forwarder-flytrap
     build:
       context: ./
     volumes:

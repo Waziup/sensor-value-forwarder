@@ -1,5 +1,5 @@
 {
-	"name": "Sensor Value Forwarder",
+	"name": "Sensor Value Forwarder Flytrap",
 	"version": "0.0.1",
 	"description": "This application forwards sensor values received by WaziGate to an endpoint.",
 	"private": false,
@@ -8,10 +8,10 @@
 	"waziapp": {
 		"icon": "ui/icon.svg",
 		"menu": {
-			"SensorValueForwarder": {
-				"primary": "Sensor Value Forwarder",
+			"SensorValueForwarderFlytrap": {
+				"primary": "Sensor Value Forwarder Flytrap",
 				"icon": "ui/menu-icon.svg",
-				"href": "#/apps/waziup.sensor-value-forwarder/ui/"
+				"href": "#/apps/waziup.sensor-value-forwarder-flytrap/ui/"
 			}
 		}
 	}

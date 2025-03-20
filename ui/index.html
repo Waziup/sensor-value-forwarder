@@ -48,6 +48,12 @@
             temp_thres.value = data.Threshold;
             usr.value = data.usr;
             passw.value = data.passw;
+
+            // Set authentication method (radio button)
+            let authMethod = data.auth || "basic"; // Default to basic if missing
+            let authRadio = document.querySelector(`input[name="auth"][value="${authMethod}"]`);
+            if (authRadio) authRadio.checked = true;
+
           }
           // TODO: delete, only Debug
           console.log(data);
@@ -78,8 +84,9 @@
       var temp_thres = document.getElementById("thres_form")
       var usr = document.getElementById("username_form")
       var passw = document.getElementById("password_form")
+      var auth = document.querySelector('input[name="auth"]:checked').value
 
-      const Params = "&url=" + encodeURIComponent(target_url.value) + "&id=" + encodeURIComponent(id.value) + "&gps=" + encodeURIComponent(gps_info.value) + "&thres=" + encodeURIComponent(temp_thres.value) + "&usr=" + encodeURIComponent(usr.value) + "&passw=" + encodeURIComponent(passw.value)
+      const Params = "&url=" + encodeURIComponent(target_url.value) + "&id=" + encodeURIComponent(id.value) + "&gps=" + encodeURIComponent(gps_info.value) + "&thres=" + encodeURIComponent(temp_thres.value) + "&usr=" + encodeURIComponent(usr.value) + "&passw=" + encodeURIComponent(passw.value) + "&auth=" + encodeURIComponent(auth)
 
       return Params
     }
@@ -256,6 +263,14 @@
       <br>
       <label for="pass_form">Password for Endpoint:</label>
       <input id="password_form" type="text" name="pass_form" placeholder="password">
+      <br>
+      <label for="pass_form">Authentication method:</label>
+      <div class="auth-options">
+        <input type="radio" id="authbasic" name="auth" value="basic">
+        <label for="authbasic">Basic Authentication</label>
+        <input type="radio" id="authjwt" name="auth" value="jwt">
+        <label for="authjwt">JWT Authentication</label>
+      </div>
       <br>
       <label for="device_id">Set an ID for the sensor:</label>
       <input id="id_form" type="text" name="device_id" placeholder="id">

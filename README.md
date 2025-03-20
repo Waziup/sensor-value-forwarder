@@ -1,2 +1,2 @@
-# sensor-value-forwarder
-This application forwards sensor values received by WaziGate to an endpoint.
+# sensor-value-forwarder    -   adopted for flytrap
+This application forwards sensor values of a flytrap received by WaziGate to an endpoint.
