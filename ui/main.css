@@ -67,3 +67,13 @@ body {
 .input_elements button:hover {
     background-color: #45a049;
 }
+
+.auth-options {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Adjust spacing */
+}
+
+.auth-options input[type="radio"] {
+    margin: 0; /* Remove extra spacing */
+}

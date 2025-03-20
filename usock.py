@@ -6,8 +6,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 
 
-sockAddr = "/var/lib/waziapp/proxy.sock"   # Default path
-#sockAddr = "proxy.sock"                     # For debug mode
+#sockAddr = "/var/lib/waziapp/proxy.sock"   # Default path
+sockAddr = "proxy.sock"                     # For debug mode
 
 # ----------------- #
 
