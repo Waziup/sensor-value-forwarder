@@ -1,0 +1,9 @@
+# Purpose: Ignore files and directories in git
+*.log
+*.md
+config.json
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class

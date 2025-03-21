@@ -22,13 +22,13 @@ import warnings
 
 #---------------------#
 
-#usock.sockAddr = "/var/lib/waziapp/proxy.sock" # Production mode
+usock.sockAddr = "/var/lib/waziapp/proxy.sock" # Production mode
 
-usock.sockAddr = "proxy.sock" # Debug mode
+#usock.sockAddr = "proxy.sock" # Debug mode
 
 # URL of API to retrive devices
-#DeviceApiUrl = "http://wazigate/devices/" # Production mode
-DeviceApiUrl = "http://localhost:8080/devices/" # Debug mode
+DeviceApiUrl = "http://wazigate/devices/" # Production mode
+#DeviceApiUrl = "http://localhost:8080/devices/" # Debug mode
 
 # Path to the root of the code
 PATH = os.path.dirname(os.path.abspath(__file__))
@@ -58,8 +58,8 @@ SyncedDevices = []
 Auth = "basic"
 
 # Saved config
-#ConfigPath = "/var/lib/waziapp/config.json"     # Production
-ConfigPath = "config.json"                      # Debug mode
+ConfigPath = "/var/lib/waziapp/config.json"     # Production
+#ConfigPath = "config.json"                      # Debug mode
 
 
 #---------------------#
