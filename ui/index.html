@@ -28,7 +28,6 @@
             var target_url = document.getElementById("url_form");
             var id = document.getElementById("id_form");
             var gps_info = document.getElementById("gps_form");
-            var temp_thres = document.getElementById("thres_form");
             var usr = document.getElementById("username_form");
             var passw = document.getElementById("password_form");
 
@@ -45,7 +44,6 @@
             target_url.value = data.Target_url;
             id.value = data.Id;
             gps_info.value = data.Gps_info.lattitude + ", " + data.Gps_info.longitude;
-            temp_thres.value = data.Threshold;
             usr.value = data.usr;
             passw.value = data.passw;
 
@@ -81,12 +79,11 @@
       var target_url = document.getElementById("url_form")
       var id = document.getElementById("id_form")
       var gps_info = document.getElementById("gps_form")
-      var temp_thres = document.getElementById("thres_form")
       var usr = document.getElementById("username_form")
       var passw = document.getElementById("password_form")
       var auth = document.querySelector('input[name="auth"]:checked').value
 
-      const Params = "&url=" + encodeURIComponent(target_url.value) + "&id=" + encodeURIComponent(id.value) + "&gps=" + encodeURIComponent(gps_info.value) + "&thres=" + encodeURIComponent(temp_thres.value) + "&usr=" + encodeURIComponent(usr.value) + "&passw=" + encodeURIComponent(passw.value) + "&auth=" + encodeURIComponent(auth)
+      const Params = "&url=" + encodeURIComponent(target_url.value) + "&id=" + encodeURIComponent(id.value) + "&gps=" + encodeURIComponent(gps_info.value) + "&usr=" + encodeURIComponent(usr.value) + "&passw=" + encodeURIComponent(passw.value) + "&auth=" + encodeURIComponent(auth)
 
       return Params
     }
@@ -277,9 +274,6 @@
       <br>
       <label for="gps">GPS coordinates of sensor:</label>
       <input id="gps_form" type="text" name="gps" placeholder="51.023591, 13.744087">
-      <br>
-      <label for="threshold">Temporal threshold in seconds:</label>
-      <input id="thres_form" type="text" name="threshold" value="10">
       <br>
       <label for="sensor_list">Attached Devices / Sensors:</label>
       <select id="sensor_list" multiple size="6"></select>

@@ -21,14 +21,14 @@ import warnings
 
 
 #---------------------#
-
-#usock.sockAddr = "/var/lib/waziapp/proxy.sock" # Production mode
-
-usock.sockAddr = "proxy.sock" # Debug mode
+# Socket settings
+usock.sockAddr = "/var/lib/waziapp/proxy.sock"      # Production mode
+#usock.sockAddr = "proxy.sock"                      # Debug mode
 
 # URL of API to retrive devices
-#DeviceApiUrl = "http://wazigate/devices/" # Production mode
-DeviceApiUrl = "http://localhost:8080/devices/" # Debug mode
+DeviceApiUrl = "http://wazigate/devices/"           # Production mode
+#DeviceApiUrl = "http://localhost:8080/devices/"    # Debug mode
+#DeviceApiUrl = "http://192.168.188.29/devices/"    # Debug mode
 
 # Path to the root of the code
 PATH = os.path.dirname(os.path.abspath(__file__))
@@ -58,8 +58,8 @@ SyncedDevices = []
 Auth = "basic"
 
 # Saved config
-#ConfigPath = "/var/lib/waziapp/config.json"     # Production
-ConfigPath = "config.json"                      # Debug mode
+ConfigPath = "/var/lib/waziapp/config.json"     # Production
+#ConfigPath = "config.json"                      # Debug mode
 
 
 #---------------------#
@@ -307,81 +307,84 @@ def post_message_to_endpoint(data, token):
 
 # Helper to search other sensor values and 
 def getSensorAtTheSameTime(deviceAndSensorIds, dataOfFirstSensor):
-    # Mapping names of sensors to the names to endpoints requirements
-    mapping = {
-        "time": "timeStamp",
-        "sensorId": "sensorId",
-        "lon": "longitude",
-        "lat": "latitude",
-        "sensor1": "payload_hex"
-    }
+    # # Mapping names of sensors to the names to endpoints requirements
+    # mapping = {
+    #     "time": "timestamp",
+    #     "sensorId": "sensorId",
+    #     "lon": "longitude",
+    #     "lat": "latitude",
+    #     "sensor1": "payload_hex"
+    # }
 
     # Dict to return in the end
     allSensorsDict = {
-            "timeStamp": None,
             "sensorId": None,
-            "longitude": None,
-            "latitude": None,
+            "timestamp": None,
+            "location": {
+                "longitude": None,
+                "latitude": None
+            },
             "payload_hex": None
     }
 
     # Get time of first sensor in list
     time = dataOfFirstSensor['time']
     # Set time of the first selected sensor as time of the dict
-    allSensorsDict["timeStamp"] = time
+    allSensorsDict["timestamp"] = time
     # Set given sensor id to dict
     allSensorsDict["sensorId"] = Id
     # Set GPS coordinates
     coordinates = Gps_info.split(",")
-    allSensorsDict["longitude"] = round(float(coordinates[1]), 6)
-    allSensorsDict["latitude"] = round(float(coordinates[0]), 6)
+    allSensorsDict["location"]["longitude"] = round(float(coordinates[1]), 6)
+    allSensorsDict["location"]["latitude"] = round(float(coordinates[0]), 6)
+    # Set the payload
+    allSensorsDict["payload_hex"] = dataOfFirstSensor["value"] #"000113ec00370010000000000000000000000000" # DEBUG
     # Parse the ISO string into a datetime object
     dateObject = datetime.fromisoformat(time)
     # Subtract and add 5 seconds to get interval
-    fromObject = dateObject - timedelta(seconds=int(Threshold))
-    toObject = dateObject + timedelta(seconds=int(Threshold))
+    #fromObject = dateObject - timedelta(seconds=int(Threshold))
+    #toObject = dateObject + timedelta(seconds=int(Threshold))
 
-    # Search all other choosen sensors to see if there are occurances too
-    for sensor in deviceAndSensorIds:
-        # Create URL for API call
-        api_url = DeviceApiUrl + sensor.split('/')[0] + "/sensors/" + sensor.split('/')[1] + "/values?from=" + fromObject.isoformat() + "&to=" + toObject.isoformat()
-        # Parse the URL
-        parsed_url = urllib.parse.urlsplit(api_url)
+    # # Search all other choosen sensors to see if there are occurances too
+    # for sensor in deviceAndSensorIds:
+    #     # Create URL for API call
+    #     api_url = DeviceApiUrl + sensor.split('/')[0] + "/sensors/" + sensor.split('/')[1] + "/values?from=" + fromObject.isoformat() + "&to=" + toObject.isoformat()
+    #     # Parse the URL
+    #     parsed_url = urllib.parse.urlsplit(api_url)
 
-        # Encode the query parameters
-        encoded_query = urllib.parse.quote(parsed_url.query, safe='=&')
+    #     # Encode the query parameters
+    #     encoded_query = urllib.parse.quote(parsed_url.query, safe='=&')
 
-        # Reconstruct the URL with the encoded query
-        encoded_url = urllib.parse.urlunsplit((parsed_url.scheme, 
-                                                parsed_url.netloc, 
-                                                parsed_url.path, 
-                                                encoded_query, 
-                                                parsed_url.fragment))
+    #     # Reconstruct the URL with the encoded query
+    #     encoded_url = urllib.parse.urlunsplit((parsed_url.scheme, 
+    #                                             parsed_url.netloc, 
+    #                                             parsed_url.path, 
+    #                                             encoded_query, 
+    #                                             parsed_url.fragment))
+    #     try:
+    #         # Send a GET request to the API
+    #         response = requests.get(encoded_url)
 
-        try:
-            # Send a GET request to the API
-            response = requests.get(encoded_url)
+    #         # Check if the request was successful (status code 200)
+    #         if response.status_code == 200:
+    #             # The response content contains the data from the API
+    #             response_ok = response.json()
 
-            # Check if the request was successful (status code 200)
-            if response.status_code == 200:
-                # The response content contains the data from the API
-                response_ok = response.json()
-
-                # Add values to the all_Sensors_dict
-                if len(response_ok) != 0:
-                    try:
-                        # For sensors that are a related to the Flytrap
-                        nameToAdd = mapping[sensor.split("/")[1]]
-                        allSensorsDict[nameToAdd] = round(response_ok[0]["value"], 1)
-                    except: 
-                        # For sensor devices that are not a Flytrap 
-                        nameToAdd = sensor.split("/")[1]
-                        allSensorsDict[nameToAdd] = response_ok[0]["value"]
-            else:
-                print("Request failed with status code:", response.status_code)
-        except requests.exceptions.RequestException as e:
-            # Handle request exceptions (e.g., connection errors)
-            print("Request error:", e)
+    #             # Add values to the all_Sensors_dict
+    #             if len(response_ok) != 0:
+    #                 try:
+    #                     # For sensors that are a related to the Flytrap
+    #                     nameToAdd = mapping[sensor.split("/")[1]]
+    #                     allSensorsDict[nameToAdd] = round(response_ok[0]["value"], 1)
+    #                 except: 
+    #                     # For sensor devices that are not a Flytrap 
+    #                     nameToAdd = sensor.split("/")[1]
+    #                     allSensorsDict["payload_hex"] = response_ok[0]["value"] #DEBUG: "000113ec00370010000000000000000000000000"
+    #         else:
+    #             print("Request failed with status code:", response.status_code)
+    #     except requests.exceptions.RequestException as e:
+    #         # Handle request exceptions (e.g., connection errors)
+    #         print("Request error:", e)
 
     return allSensorsDict
 
@@ -531,8 +534,7 @@ class WorkerThread(threading.Thread):
                                 if token:
                                     post_message_to_endpoint(deviceDict, token)
                             else:
-                                resp = postMessageToEndpoint(deviceDict, self.usr, self.passw)
-                                print(resp)
+                                postMessageToEndpoint(deviceDict, self.usr, self.passw)
                             #resp = postMessageToEndpoint(deviceDict, self.usr, self.passw)
 
                     alreadySyncedDevices.clear()
@@ -622,11 +624,16 @@ usock.routerPOST("/api/getFutureValues", getFutureValues)
 # Just kill all threads and stop sync
 def stopSync(url, body):
     global SyncedDevices
+    global Threads
 
     for thread in Threads:
         # To stop the thread by its ID:
         #kill_thread(thread)
         thread.on_stop()
+        thread.join()  # Wait for thread to fully stop before continuing
+
+    # Clear list of running threads
+    Threads = []
 
     # Empty list of devices
     SyncedDevices = []
