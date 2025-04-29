@@ -17,6 +17,7 @@ import paho.mqtt.client as mqtt
 import json
 import threading
 import warnings
+from collections import deque
 
 
 
@@ -60,6 +61,9 @@ Auth = "basic"
 # Saved config
 ConfigPath = "/var/lib/waziapp/config.json"     # Production
 #ConfigPath = "config.json"                      # Debug mode
+
+# Global message queue
+message_queue = deque()
 
 
 #---------------------#
@@ -207,31 +211,52 @@ def getConfig(url, body):
     
 usock.routerGET("/api/getConfig", getConfig)
 
-
-# Helper function to create json for one message and send to endpoint
-def postMessageToEndpoint(data, usr, passw):
-    # Create a session
+# Helper function to send a single message
+def sendMessage(data, usr, passw):
     session = requests.Session()
-
-    # Set the auth
     session.auth = HTTPBasicAuth(usr, passw)
-    
-    # Suppress the InsecureRequestWarning
     session.verify = False  # Disable SSL verification
     warnings.simplefilter('ignore', InsecureRequestWarning)
 
-    # Forward data to the database
-    response = session.post(Target_url, json=data, verify=False)
+    try:
+        response = session.post(Target_url, json=data)
+        if response.status_code == 200:
+            return True
+        else:
+            print(f"Failed to forward data: HTTP {response.status_code}")
+            return False
+    except requests.RequestException as e:
+        print(f"Request exception: {e}")
+        return False
 
-    m = ""
-    if response.status_code == 200:
-        m = "Data forwarded to the database successfully"
+# Helper function to create json for one message and send to endpoint
+def postMessageToEndpoint(data, usr, passw):
+    global message_queue
+
+    # First, resend queued messages
+    if message_queue:
+        print(f"Trying to resend {len(message_queue)} queued messages...")
+        failed_messages = deque()
+        success_count = 0
+        fail_count = 0
+
+        while message_queue:
+            old_data = message_queue.popleft()
+            if sendMessage(old_data, usr, passw):
+                success_count += 1
+            else:
+                fail_count += 1
+                failed_messages.append(old_data)
+
+        message_queue = failed_messages
+        print(f"Resend summary: {success_count} succeeded, {fail_count} failed")
+
+    # Now, send the current message
+    if sendMessage(data, usr, passw):
+        print("Current message sent successfully")
     else:
-        m = "Failed to forward data to the database:" + str(response.status_code)
-    print(m)
-    
-    return m
-    
+        print("Saving current message to queue")
+        message_queue.append(data)
 
 # Helper function to create json for multiple messages and send to endpoint
 def postMessagesToEndpoint(connected_data, usr, passw):
